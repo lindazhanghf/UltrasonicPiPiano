@@ -1,7 +1,7 @@
 extern crate serialport;
-use std::io;
+// use std::io;
 use std::str;
-
+use std::str::FromStr;
 // extern crate byteorder;
 // use byteorder::{BigEndian, ReadBytesExt};
 
@@ -170,8 +170,8 @@ fn main() {
   synth.set_instrument(10, 37);
 
 
-  let mut gesture : u8 = 0;
-  let mut gesture_counter : u32 = 0;
+  // let mut gesture : u8 = 0;
+  // let mut gesture_counter : u32 = 0;
 
   // play scale to indicate that the instrument is ready
   synth.play_scale(1, 48, 12);
@@ -179,18 +179,18 @@ fn main() {
   let mut counter = 0_u32;
   //key[8].set_note(0);
 
+  // Get starting luminosity
   if let Ok(mut port) = serialport::open(&port_name) {
       let mut serial_buf: Vec<u8> = vec![0; 1000];
       println!("Receiving data on {} at 9600 baud:", &port_name);
       // loop {
-          if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
-              let mut buffer  = (str::from_utf8(&serial_buf[..(t-2)]).unwrap());
-              // buffer = buffer.get(0..buffer.len() - 1);
-              println!(" first luminosity = {}", buffer);
-              luminosity = buffer.parse().unwrap();
-              // // luminosity = buffer.trim().parse().unwrap();
-              // println!(" {}", luminosity.to_string());
-          }
+        if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
+            let buffer  = str::from_utf8(&serial_buf[..t]).unwrap();
+            println!(" starting luminosity = {}", buffer);
+            if buffer.len() < 5 {
+              luminosity = u32::from_str(buffer).unwrap();
+            }
+        }
       // }
       instrument_index = find_interval(luminosity);
       for i in 0 .. 8 { 
@@ -199,12 +199,12 @@ fn main() {
 
     loop {
       if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
-          let mut buffer = (str::from_utf8(&serial_buf[..(t-2)]).unwrap());
-          println!(" buffer = {}", buffer);
-          // buffer = buffer.get(0..buffer.len() - 1);
-          // luminosity = (*buffer).parse::<u32>().unwrap();
-          // luminosity = buffer.trim().parse().unwrap();
-          // println!(" {}", luminosity.to_string());
+          let buffer  = str::from_utf8(&serial_buf[..t]).unwrap();
+          println!(" luminosity = {}", buffer);
+          if buffer.len() < 5 {
+            luminosity = u32::from_str(buffer).unwrap();
+          }
+          // luminosity = buffer.parse().unwrap();
       }
 
       // check shutdown switch but not every time around the loop
@@ -373,23 +373,22 @@ fn main() {
   }
 }
 
-fn shutdown(synth: &Synth, key: &Vec<Key>) {
-  println!("# shutting down");
+// fn shutdown(synth: &Synth, key: &Vec<Key>) {
+//   println!("# shutting down");
             
-  // stop existing notes
-  for i in 0 .. 8 { synth.note_off(i+1, key[i as usize].note) }
+//   // stop existing notes
+//   for i in 0 .. 8 { synth.note_off(i+1, key[i as usize].note) }
  
-  // play scale (hi to lo)
-  synth.play_scale(1, 48, 12);
+//   // play scale (hi to lo)
+//   synth.play_scale(1, 48, 12);
 
-  // issue shutdown command
-  Command::new("sh")
-    .arg("-c")
-    // .arg("shutdown now")
-    .output()
-    .expect("failed to execute shutdown command");
-
-}
+//   // issue shutdown command
+//   Command::new("sh")
+//     .arg("-c")
+//     // .arg("shutdown now")
+//     .output()
+//     .expect("failed to execute shutdown command");
+// }
 
 fn find_interval(luminosity : u32) -> usize {
   // The luminosity intervals that determine the instrument
@@ -399,34 +398,34 @@ fn find_interval(luminosity : u32) -> usize {
   // let mut interval : usize = 0; // The interval in which luminosity falls in
   if luminosity < light_interval[0] {
     
-    // println!("0");
+    println!("interval 0");
     return 0;
   } else if luminosity < light_interval[1] {
     
-    // println!("1");
+    println!("interval 1");
     return 1;
   } else if luminosity < light_interval[2] {
     
-    // println!("2");
+    println!("interval 2");
     return 2;
   } else if luminosity < light_interval[3] {
     
-    // println!("3");
+    println!("interval 3");
     return 3;
   } else if luminosity < light_interval[4] {
     
-    // println!("4");
+    println!("interval 4");
     return 4;
   } else if luminosity < light_interval[5] {
     
-    // println!("5");
+    println!("interval 5");
     return 5;
   } else if luminosity < light_interval[6] {
     
-    // println!("6");
+    println!("interval 6");
     return 6;
   } 
-  // println!("7");
+  println!("interval 7");
   return 7;
 
   // return interval;
