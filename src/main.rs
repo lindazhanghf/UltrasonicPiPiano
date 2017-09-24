@@ -1,10 +1,6 @@
 extern crate serialport;
-// use std::io;
 use std::str;
 use std::str::FromStr;
-// extern crate byteorder;
-// use byteorder::{BigEndian, ReadBytesExt};
-
 
 use std::process::Command;
 //use std::time::Duration;
@@ -167,14 +163,14 @@ fn main() {
     };
     synth.set_instrument(i as u8 + 1, instrument_code);
   }
-  synth.set_instrument(10, 37);
+  synth.set_instrument(10, 117);
 
 
   // let mut gesture : u8 = 0;
   // let mut gesture_counter : u32 = 0;
 
   // play scale to indicate that the instrument is ready
-  synth.play_scale(1, 48, 12);
+  // synth.play_scale(1, 48, 12);
 
   let mut counter = 0_u32;
   //key[8].set_note(0);
@@ -186,7 +182,7 @@ fn main() {
       // loop {
         if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
             let buffer  = str::from_utf8(&serial_buf[..t]).unwrap();
-            println!(" starting luminosity = {}", buffer);
+            println!("                                       starting luminosity = {}", buffer);
             if buffer.len() < 5 {
               luminosity = u32::from_str(buffer).unwrap();
             }
@@ -196,11 +192,13 @@ fn main() {
       for i in 0 .. 8 { 
         synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
       }
+  // play scale to indicate that the instrument is ready
+  synth.play_scale(1, 48, 12);
 
     loop {
       if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
           let buffer  = str::from_utf8(&serial_buf[..t]).unwrap();
-          println!(" luminosity = {}", buffer);
+          println!("                                         luminosity = {}", buffer);
           if buffer.len() < 5 {
             luminosity = u32::from_str(buffer).unwrap();
           }
