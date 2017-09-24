@@ -7,3 +7,5 @@ authors = ["Andy Grove <andygrove73@gmail.com>"]
 octasonic = "0.1.0"
 argparse = "0.2.1"
 sysfs_gpio = "0.5.0"
+serialport = "1.0.1"
+byteorder = "1.1.0"

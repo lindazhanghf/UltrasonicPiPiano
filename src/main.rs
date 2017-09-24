@@ -1,3 +1,11 @@
+extern crate serialport;
+// use std::io::{self, Write};
+use std::str;
+
+// extern crate byteorder;
+// use byteorder::{BigEndian, ReadBytesExt};
+
+
 use std::process::Command;
 //use std::time::Duration;
 //use std::thread::sleep;
@@ -50,6 +58,12 @@ impl Key {
 }
 
 fn main() {
+
+  let port_name = "/dev/ttyACM0";
+  let mut luminosity : u32 = 0;
+
+  // The luminosity intervals that determine the instrument
+  let mut light_interval : Vec<u32> = vec![ 100, 200, 300, 400, 500, 600, 700 ];  
 
   //speak(format!("Raspberry Pi Piano Starting Up"));
 
@@ -133,7 +147,7 @@ fn main() {
   let octasonic = match Octasonic::new(8) {
     Ok(o) => o,
     Err(_) => panic!("Failed to initialize SPI - have you enabled SPI in the Raspberry Pi Configuration Utility?")
-  };	
+  };  
   octasonic.set_max_distance(2); // 2= 48 cm
   octasonic.set_interval(2); // no pause between taking sensor readings
   let mut distance = vec![0_u8; 8];
@@ -143,6 +157,7 @@ fn main() {
   for _ in 0 .. 8 {
     key.push(Key::new());
   }
+  key.push(Key::new());
 
   let mut instrument_index = 0_usize;
 
@@ -155,6 +170,8 @@ fn main() {
     };
     synth.set_instrument(i as u8 + 1, instrument_code);
   }
+  synth.set_instrument(10, 37);
+
 
   let mut gesture : u8 = 0;
   let mut gesture_counter : u32 = 0;
@@ -163,106 +180,197 @@ fn main() {
   synth.play_scale(1, 48, 12);
 
   let mut counter = 0_u32;
+  //key[8].set_note(0);
 
-  loop {
+  if let Ok(mut port) = serialport::open(&port_name) {
+      let mut serial_buf: Vec<u8> = vec![0; 1000];
+      println!("Receiving data on {} at 9600 baud:", &port_name);
+      // loop {
+          // if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
+          //     // luminosity = &serial_buf[..t].read_u32::<BigEndian>().unwrap();
+          //     let buffer = str::from_utf8(&serial_buf[..t]).unwrap();
+          //     println!(" Init luminosity = {}", buffer);
+          //     luminosity = buffer.parse::<u32>().unwrap_or_default();
+          // }
+      // }
 
-    // check shutdown switch but not every time around the loop
-    counter = counter + 1;
-    if counter == 100 {
-      counter = 0;
 
-      match pin.get_value() {
-        Ok(n) if n == 1 => shutdown(&synth, &key),
-        _ => {}
+  // println!(" luminosity = {}", luminosity);
+
+    loop {
+      if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
+          let buffer = str::from_utf8(&serial_buf[..t]).unwrap();
+          println!(" {}", buffer);
+          luminosity = buffer.parse::<u32>().unwrap_or_default();
       }
-    }
 
-    for i in 0 .. 8 {
+      instrument_index = find_interval(luminosity);
+      for i in 0 .. 8 { 
+        synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
+      }
 
-      let channel = i as u8 + 1;
+      // check shutdown switch but not every time around the loop
+      // counter = counter + 1;
+      // if counter == 100 {
+      //   counter = 0;
 
-      // get sensor reading
-      distance[i] = octasonic.get_sensor_reading(i as u8);
+      //   match pin.get_value() {
+      //     Ok(n) if n == 1 => shutdown(&synth, &key),
+      //     _ => {}
+      //   }
+      // }
 
-      // is the key covered?
-      if distance[i] < max_distance {
+      // Update instrument according to luminosity reading every 100 loops
+      counter = counter + 1;
+      if counter == 1000 {
+        counter = 0;
 
-        // the key is covered, so figure out which note to play
-        let scale_start = start_note + octave_offset * i as u8;
+        instrument_index : usize = find_interval(luminosity);
 
-        // this is a bit funky ... we use modulus to pick the note within the scale ... it
-        // seemed to sound better than trying to divide the distance by the number of notes
-        let new_note = match mode {
-          Mode::Modulus => scale_start + scale[(distance[i]%7) as usize],
-          Mode::Linear => scale_start + scale[(distance[i]/cm_per_note) as usize]
-        };
+        for i in 0 .. 8 { 
+          synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
+        }
+        synth.play_scale(1, 48, 12);
 
-        // is this a different note to the one already playing?
-        if new_note != key[i].note {
+      }
 
-          // stop the previous note on this key (if any) from playing
-          if key[i].note > 0 {
-            synth.note_off(channel, key[i].note);
+      // drum
+      for i in 0 .. 1 { 
+        let channel = 10;
+        let new_i = 8 + i;
+        let drum_note = 38;
+
+        distance[i] = octasonic.get_sensor_reading(i as u8);
+        if distance[i] < 10 {
+
+          let scale_start = start_note + octave_offset * i as u8;
+
+          let new_note = match mode {
+            Mode::Modulus => scale_start + scale[(distance[i]%7) as usize],
+            Mode::Linear => scale_start + scale[(distance[i]/cm_per_note) as usize]
+          };
+
+          // is this a different note to the one already playing?
+          if new_note != key[i].note {
+
+            // stop the previous note on this key (if any) from playing
+            if key[i].note > 0 {
+              synth.note_off(channel, drum_note);
+            }
+
+            // play the new note
+            key[i].set_note(new_note);
+            synth.note_on(channel, drum_note, velocity);
           }
 
-          // play the new note
-          key[i].set_note(new_note);
-          synth.note_on(channel, key[i].note, velocity);
-        }
 
-      } else if key[i].note > 0 {
-        // a note was playing but the key is not currently covered
-        key[i].counter = key[i].counter + 1;
-        if key[i].counter == 100 {
-          // its time to stop playing this note
-          synth.note_off(channel, key[i].note);
-          key[i].set_note(0);
+        } else if key[new_i].note > 0 {
+          // a note was playing but the key is not currently covered
+          key[new_i].counter = key[new_i].counter + 1;
+          if key[new_i].counter == 50 {
+            // its time to stop playing this note
+            synth.note_off(channel, drum_note);
+            key[new_i].set_note(0);
+          }
         }
       }
-    } 
 
-    // convert key distances to single binary number
-    let new_gesture :u8 = distance.iter()
-              .enumerate()
-              .map(|(i,val)| if *val < 15_u8 { 1_u8 << i } else { 0_u8 })
-              .sum();
+      for i in 1 .. 8 {
 
-    if gesture == new_gesture {
-      gesture_counter += 1;
-      if gesture_counter == 150 {
+        let channel = i as u8 + 1;
 
-        if gesture == gesture_change_instrument {
+        // get sensor reading
+        distance[i] = octasonic.get_sensor_reading(i as u8);
 
-            match instrument_mode {
-              InstrMode::Orchestra => {},
-              InstrMode::Single => {
+        // is the key covered?
+        if distance[i] < max_distance {
 
-                // stop existing notes
-                for i in 0 .. 8 { synth.note_off(i+1, key[i as usize].note) }
+          // the key is covered, so figure out which note to play
+          let scale_start = start_note + octave_offset * i as u8;
 
-                // choose the next instrument
-                instrument_index += 1;
-                if instrument_index == instruments.len() { instrument_index = 0; }
-                for i in 0 .. 8 { 
-                  synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
-                }
+          // this is a bit funky ... we use modulus to pick the note within the scale ... it
+          // seemed to sound better than trying to divide the distance by the number of notes
+          let new_note = match mode {
+            Mode::Modulus => scale_start + scale[(distance[i]%7) as usize],
+            Mode::Linear => scale_start + scale[(distance[i]/cm_per_note) as usize]
+          };
 
-                // play a quick scale to indicate that the instrument changed
-                synth.play_scale(1, 48, 12);
-              }
+          // is this a different note to the one already playing?
+          if new_note != key[i].note {
+
+            // stop the previous note on this key (if any) from playing
+            if key[i].note > 0 {
+              synth.note_off(channel, key[i].note);
             }
-        } else if gesture == gesture_shutdown {
-            shutdown(&synth, &key);
-        }
 
-        gesture_counter = 0;
-      }
-    } else { 
-      //println!("gesture: {}", new_gesture);
-      // reset counter
-      gesture = new_gesture;
-      gesture_counter = 0; 
+            // play the new note
+            key[i].set_note(new_note);
+            synth.note_on(channel, key[i].note, velocity);
+          }
+
+        } else if key[i].note > 0 {
+          // a note was playing but the key is not currently covered
+          key[i].counter = key[i].counter + 1;
+          if key[i].counter == 100 {
+            // its time to stop playing this note
+            synth.note_off(channel, key[i].note);
+            key[i].set_note(0);
+          }
+        }
+      } 
+
+      // convert key distances to single binary number
+      // let new_gesture :u8 = distance.iter()
+      //           .enumerate()
+      //           .map(|(i,val)| if *val < 15_u8 { 1_u8 << i } else { 0_u8 })
+      //           .sum();
+
+      // if gesture == new_gesture {
+      //   gesture_counter += 1;
+      //   if gesture_counter == 150 {
+
+      //     if gesture == gesture_change_instrument {
+
+      //         match instrument_mode {
+      //           InstrMode::Orchestra => {},
+      //           InstrMode::Single => {
+
+      //             // stop existing notes
+      //             for i in 0 .. 8 { synth.note_off(i+1, key[i as usize].note) }
+
+      //             // choose the next instrument
+      //             instrument_index += 1;
+      //             if instrument_index == instruments.len() { instrument_index = 0; }
+      //             for i in 0 .. 8 { 
+      //               //synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
+      //               synth.set_instrument(10, 38 + instrument_index as u8);
+      //             }
+
+      //             // play a quick scale to indicate that the instrument changed
+      //             synth.play_scale(1, 48, 12);
+      //           }
+      //         }
+      //     } else if gesture == gesture_shutdown {
+      //         shutdown(&synth, &key);
+      //     }
+
+      //     gesture_counter = 0;
+      //   }
+      // } else { 
+      //   //println!("gesture: {}", new_gesture);
+      //   // reset counter
+      //   gesture = new_gesture;
+      //   gesture_counter = 0;
+      // }
+    
     }
+  } else {
+      println!("Error: Port '{}' not available", &port_name);
+      Command::new("sh")
+        .arg("-c")
+        // .arg("shutdown now")
+        .output()
+        .expect("failed to execute shutdown command");
   }
 }
 
@@ -278,10 +386,33 @@ fn shutdown(synth: &Synth, key: &Vec<Key>) {
   // issue shutdown command
   Command::new("sh")
     .arg("-c")
-    .arg("shutdown now")
+    // .arg("shutdown now")
     .output()
     .expect("failed to execute shutdown command");
 
 }
 
+fn find_interval(luminosity : u32) -> usize {
+  let mut light_interval : Vec<u32> = vec![ 100, 200, 300, 400, 500, 600, 700 ];  
 
+  let mut interval : usize = 0; // The interval in which luminosity falls in
+  if luminosity < light_interval[0] {
+    interval = 0;
+  } else if luminosity < light_interval[1] {
+    interval = 1;
+  } else if luminosity < light_interval[2] {
+    interval = 2;
+  } else if luminosity < light_interval[3] {
+    interval = 3;
+  } else if luminosity < light_interval[4] {
+    interval = 4;
+  } else if luminosity < light_interval[5] {
+    interval = 5;
+  } else if luminosity < light_interval[6] {
+    interval = 6;
+  } else {
+    interval = 7;
+  }  
+
+  return interval;
+}
