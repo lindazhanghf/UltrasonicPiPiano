@@ -1,5 +1,5 @@
 extern crate serialport;
-// use std::io::{self, Write};
+use std::io;
 use std::str;
 
 // extern crate byteorder;
@@ -61,9 +61,6 @@ fn main() {
 
   let port_name = "/dev/ttyACM0";
   let mut luminosity : u32 = 0;
-
-  // The luminosity intervals that determine the instrument
-  let mut light_interval : Vec<u32> = vec![ 100, 200, 300, 400, 500, 600, 700 ];  
 
   //speak(format!("Raspberry Pi Piano Starting Up"));
 
@@ -186,27 +183,28 @@ fn main() {
       let mut serial_buf: Vec<u8> = vec![0; 1000];
       println!("Receiving data on {} at 9600 baud:", &port_name);
       // loop {
-          // if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
-          //     // luminosity = &serial_buf[..t].read_u32::<BigEndian>().unwrap();
-          //     let buffer = str::from_utf8(&serial_buf[..t]).unwrap();
-          //     println!(" Init luminosity = {}", buffer);
-          //     luminosity = buffer.parse::<u32>().unwrap_or_default();
-          // }
+          if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
+              let mut buffer  = (str::from_utf8(&serial_buf[..(t-2)]).unwrap());
+              // buffer = buffer.get(0..buffer.len() - 1);
+              println!(" first luminosity = {}", buffer);
+              luminosity = buffer.parse().unwrap();
+              // // luminosity = buffer.trim().parse().unwrap();
+              // println!(" {}", luminosity.to_string());
+          }
       // }
-
-
-  // println!(" luminosity = {}", luminosity);
-
-    loop {
-      if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
-          let buffer = str::from_utf8(&serial_buf[..t]).unwrap();
-          println!(" {}", buffer);
-          luminosity = buffer.parse::<u32>().unwrap_or_default();
-      }
-
       instrument_index = find_interval(luminosity);
       for i in 0 .. 8 { 
         synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
+      }
+
+    loop {
+      if let Ok(t) = port.read(serial_buf.as_mut_slice()) {
+          let mut buffer = (str::from_utf8(&serial_buf[..(t-2)]).unwrap());
+          println!(" buffer = {}", buffer);
+          // buffer = buffer.get(0..buffer.len() - 1);
+          // luminosity = (*buffer).parse::<u32>().unwrap();
+          // luminosity = buffer.trim().parse().unwrap();
+          // println!(" {}", luminosity.to_string());
       }
 
       // check shutdown switch but not every time around the loop
@@ -225,13 +223,14 @@ fn main() {
       if counter == 1000 {
         counter = 0;
 
-        instrument_index : usize = find_interval(luminosity);
-
-        for i in 0 .. 8 { 
-          synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
+        let new_instrument : usize = find_interval(luminosity);
+        if new_instrument != instrument_index {
+          instrument_index = new_instrument;
+          for i in 0 .. 8 { 
+            synth.set_instrument(i as u8 + 1, instruments[instrument_index]); 
+          }
+          synth.play_scale(1, 48, 12);
         }
-        synth.play_scale(1, 48, 12);
-
       }
 
       // drum
@@ -393,26 +392,42 @@ fn shutdown(synth: &Synth, key: &Vec<Key>) {
 }
 
 fn find_interval(luminosity : u32) -> usize {
-  let mut light_interval : Vec<u32> = vec![ 100, 200, 300, 400, 500, 600, 700 ];  
+  // The luminosity intervals that determine the instrument
+  let light_interval : Vec<u32> = vec![ 100, 200, 300, 400, 500, 600, 700 ];  
 
-  let mut interval : usize = 0; // The interval in which luminosity falls in
+  // println!(" in luminosity = {}", luminosity);
+  // let mut interval : usize = 0; // The interval in which luminosity falls in
   if luminosity < light_interval[0] {
-    interval = 0;
+    
+    // println!("0");
+    return 0;
   } else if luminosity < light_interval[1] {
-    interval = 1;
+    
+    // println!("1");
+    return 1;
   } else if luminosity < light_interval[2] {
-    interval = 2;
+    
+    // println!("2");
+    return 2;
   } else if luminosity < light_interval[3] {
-    interval = 3;
+    
+    // println!("3");
+    return 3;
   } else if luminosity < light_interval[4] {
-    interval = 4;
+    
+    // println!("4");
+    return 4;
   } else if luminosity < light_interval[5] {
-    interval = 5;
+    
+    // println!("5");
+    return 5;
   } else if luminosity < light_interval[6] {
-    interval = 6;
-  } else {
-    interval = 7;
-  }  
+    
+    // println!("6");
+    return 6;
+  } 
+  // println!("7");
+  return 7;
 
-  return interval;
+  // return interval;
 }
