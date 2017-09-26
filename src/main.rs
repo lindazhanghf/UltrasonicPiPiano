@@ -85,7 +85,7 @@ fn main() {
   // choose MIDI instrument to associate with each key
   // see https://en.wikipedia.org/wiki/General_MIDI
   // 1 = Piano, 14 = Xylophone, 18 = Percussive Organ, 41 = Violin
-  let mut instruments : Vec<u8> = vec![ 1, 10, 18, 25, 41, 89, 49, 14 ];
+  let mut instruments : Vec<u8> = vec![ 89, 1, 25, 41, 18, 49, 14, 10 ]; // New instrument order
   let mut instrument_mode_str = "single".to_string();
 
   // we use a fixed velocity of 127 (the max value)
@@ -218,7 +218,7 @@ fn main() {
 
       // Update instrument according to luminosity reading every 100 loops
       counter = counter + 1;
-      if counter == 1000 {
+      if counter == 500 {
         counter = 0;
 
         let new_instrument : usize = find_interval(luminosity);
@@ -238,7 +238,7 @@ fn main() {
         let drum_note = 38;
 
         distance[i] = octasonic.get_sensor_reading(i as u8);
-        if distance[i] < 10 {
+        if distance[i] < max_distance {
 
           let scale_start = start_note + octave_offset * i as u8;
 
@@ -390,40 +390,40 @@ fn main() {
 
 fn find_interval(luminosity : u32) -> usize {
   // The luminosity intervals that determine the instrument
-  let light_interval : Vec<u32> = vec![ 100, 200, 300, 400, 500, 600, 700 ];  
+  let light_interval : Vec<u32> = vec![ 200, 400, 600, 800, 1000, 1300, 1600 ];  
 
   // println!(" in luminosity = {}", luminosity);
   // let mut interval : usize = 0; // The interval in which luminosity falls in
   if luminosity < light_interval[0] {
     
-    println!("interval 0");
+    println!("Set instrument to 0");
     return 0;
   } else if luminosity < light_interval[1] {
     
-    println!("interval 1");
+    println!("Set instrument to 1");
     return 1;
   } else if luminosity < light_interval[2] {
     
-    println!("interval 2");
+    println!("Set instrument to 2");
     return 2;
   } else if luminosity < light_interval[3] {
     
-    println!("interval 3");
+    println!("Set instrument to 3");
     return 3;
   } else if luminosity < light_interval[4] {
     
-    println!("interval 4");
+    println!("Set instrument to 4");
     return 4;
   } else if luminosity < light_interval[5] {
     
-    println!("interval 5");
+    println!("Set instrument to 5");
     return 5;
   } else if luminosity < light_interval[6] {
     
-    println!("interval 6");
+    println!("Set instrument to 6");
     return 6;
   } 
-  println!("interval 7");
+  println!("Set instrument to 7");
   return 7;
 
   // return interval;
